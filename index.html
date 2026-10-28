@@ -54,7 +54,10 @@ nav button.on{color:var(--pri);font-weight:700;box-shadow:inset 0 3px 0 var(--ac
 <main id="v"></main>
 <nav id="nav"></nav>
 </div>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
+var SB_URL="https://vpgfckhcwuvihzgirmlr.supabase.co",SB_KEY="sb_publishable_oS2QzNvHDUT9b4KeFmF-sA_3BPYLHlh";
+var SB=window.supabase?window.supabase.createClient(SB_URL,SB_KEY):null;
 var S={user:null,mode:'c',screen:'home',cat:null,desc:'',pro:null,days:1,type:'visita',paid:false,stars:0,online:true,reqs:[{n:'Marta – Cohama',s:'Chuveiro não esquenta',v:50,c:4.8,q:23},{n:'Paulo – Turu',s:'Vazamento na pia',v:50,c:4.2,q:6}]};
 var CATS=[['⚡','Eletricista','visita'],['🚰','Encanador','visita'],['🪑','Montador de móveis','montagem'],['🧱','Pedreiro','diaria'],['👷','Ajudante de pedreiro','diaria'],['🔧','Reparos diversos','visita']];
 var PROS={visita:[['Carlos Mendes',4.9,128,'Renascença','8 min',50],['Joana Silva',4.8,94,'Calhau','12 min',50],['Pedro Lima',4.7,61,'Cohama','15 min',45]],
@@ -148,18 +151,39 @@ function auth(){
  }
  return h+'<button class="btn" onclick="enter()">'+(A.t=='in'?'Entrar':'Criar conta')+'</button>';
 }
-function enter(){
+function sbMsg(e){var m=(e&&e.message||'').toLowerCase();
+ if(m.indexOf('invalid login')>-1)return 'E-mail ou senha incorretos.';
+ if(m.indexOf('not confirmed')>-1)return 'Confirme seu e-mail antes de entrar. Veja sua caixa de entrada.';
+ if(m.indexOf('already')>-1)return 'Este e-mail já tem cadastro. Use "Entrar".';
+ if(m.indexOf('at least')>-1||m.indexOf('weak')>-1)return 'A senha precisa ter pelo menos 6 caracteres.';
+ if(m.indexOf('valid email')>-1||m.indexOf('invalid')>-1)return 'Confira o e-mail digitado.';
+ if(m.indexOf('rate limit')>-1||m.indexOf('too many')>-1)return 'Muitas tentativas. Aguarde um pouco e tente de novo.';
+ return 'Não foi possível concluir agora. Tente novamente.'}
+function mkUser(u){var m=u.user_metadata||{};A.f.e=u.email||'';A.f.t=m.phone||'';
+ return {id:u.id,name:m.name||u.email||'Usuário',role:m.role||'c',novo:true,reg:m.region||'São Luís',hc:[],hp:[]}}
+async function enter(){
  var f=A.f,up=A.t=='up';
  if(up&&(!f.n||!f.e||!f.s||!f.t)){alert('Preencha nome, telefone, e-mail e senha.');return}
  if(up&&A.r=='p'&&!A.consent){alert('Para enviar documento e selfie, é preciso autorizar o uso dos dados.');return}
  if(up&&A.r=='p'&&(!A.cats.length||!A.doc||!A.self)){alert('Escolha ao menos uma categoria e envie documento e selfie.');return}
  if(!up&&(!f.e||!f.s)){alert('Informe e-mail e senha.');return}
- S.user={name:f.n||(A.r=='p'?'Carlos Mendes':'Marta Oliveira'),role:A.r,novo:up,reg:f.b||'São Luís',hc:up?[]:HC.slice(),hp:up?[]:HP.slice()};
- S.mode=A.r;S.screen='home';render();
+ if(!SB){alert('Não foi possível conectar ao servidor. Verifique sua internet e recarregue a página.');return}
+ var r;
+ try{
+  if(up)r=await SB.auth.signUp({email:f.e.trim(),password:f.s,options:{emailRedirectTo:location.origin+location.pathname,data:{name:f.n,phone:f.t,role:A.r,region:f.b||'',cats:A.r=='p'?A.cats.map(function(i){return CATS[i][1]}):[],daily:f.d||''}}});
+  else r=await SB.auth.signInWithPassword({email:f.e.trim(),password:f.s});
+ }catch(x){alert('Erro de conexão. Tente novamente.');return}
+ if(r.error){alert(sbMsg(r.error));return}
+ delete f.s;
+ if(!r.data.session){alert('Quase lá! Enviamos um e-mail de confirmação. Confirme e depois entre.');A.t='in';render();return}
+ S.user=mkUser(r.data.user);S.mode=S.user.role;S.screen='home';render();
 }
-function logout(){S.user=null;A.r=null;S.screen='home';render()}
+async function logout(){if(SB)try{await SB.auth.signOut()}catch(x){}S.user=null;A.r=null;A.f={};S.screen='home';render()}
 function upl(k){if(!A.consent){alert('Marque a autorização de uso dos dados antes de enviar.');return}A[k]=1;render()}
-function del(){if(!confirm('Excluir sua conta e seus dados? Isso não pode ser desfeito.'))return;S.user=null;A.f={};A.doc=0;A.self=0;A.consent=0;A.cats=[];A.r=null;A.t='in';S.screen='home';alert('Conta excluída. Seus dados pessoais foram apagados.');render()}
+async function del(){
+ if(!confirm('Excluir sua conta e seus dados? Isso não pode ser desfeito.'))return;
+ if(SB){var r=await SB.rpc('delete_my_account');if(r.error){alert('Não foi possível excluir agora. Tente novamente ou escreva para o contato de privacidade.');return}try{await SB.auth.signOut()}catch(x){}}
+ S.user=null;A.f={};A.doc=0;A.self=0;A.consent=0;A.cats=[];A.r=null;A.t='in';S.screen='home';alert('Conta excluída. Seus dados pessoais foram apagados.');render()}
 function stars(n){return n?'★★★★★'.slice(0,n)+'☆☆☆☆☆'.slice(0,5-n):'Aguardando avaliação'}
 function hist(){
  var p=S.user.role=='p',L=p?S.user.hp:S.user.hc;
@@ -182,6 +206,7 @@ function finish(){
 }
 function pick(i){S.cat=i;S.desc='';mov=0;go('desc')}
 render();
+if(SB)SB.auth.getSession().then(function(r){var ss=r.data&&r.data.session;if(ss){S.user=mkUser(ss.user);S.mode=S.user.role;render()}});
 </script>
 </body>
 </html>
