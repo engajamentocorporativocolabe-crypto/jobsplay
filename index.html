@@ -170,10 +170,10 @@ async function enter(){
  if(!SB){alert('Não foi possível conectar ao servidor. Verifique sua internet e recarregue a página.');return}
  var r;
  try{
-  if(up)r=await SB.auth.signUp({email:f.e.trim(),password:f.s,options:{emailRedirectTo:location.origin+location.pathname,data:{name:f.n,phone:f.t,role:A.r,region:f.b||'',cats:A.r=='p'?A.cats.map(function(i){return CATS[i][1]}):[],daily:f.d||''}}});
+  if(up)r=await SB.auth.signUp({email:f.e.trim(),password:f.s,options:{emailRedirectTo:location.origin+location.pathname,data:{full_name:f.n,phone:f.t,role:A.r,neighborhood:f.b||'',categories:A.r=='p'?A.cats.map(function(i){return i+1}):[],daily_rate:f.d||'',consent:A.r=='p'&&!!A.consent}}});
   else r=await SB.auth.signInWithPassword({email:f.e.trim(),password:f.s});
  }catch(x){alert('Erro de conexão. Tente novamente.');return}
- if(r.error){alert(sbMsg(r.error));return}
+ if(r.error){console.error('Supabase:',r.error);var m0=sbMsg(r.error);if(m0.indexOf('Não foi possível')==0)m0+='\n\n(Detalhe técnico: '+(r.error.message||r.error.code||'erro desconhecido')+')';alert(m0);return}
  delete f.s;
  if(!r.data.session){alert('Quase lá! Enviamos um e-mail de confirmação. Confirme e depois entre.');A.t='in';render();return}
  S.user=mkUser(r.data.user);S.mode=S.user.role;S.screen='home';render();
